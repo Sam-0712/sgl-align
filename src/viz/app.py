@@ -1,5 +1,5 @@
 """
-sgl.viz.app -- PyQt6 Diff Viewer with inline char-level rich diff.
+viz.app -- PyQt6 Diff Viewer with inline char-level rich diff.
 
 Provides a ``DiffViewer`` QMainWindow with a unified inline diff view
 matching the TSX reference design: character-level alignment rendered as
@@ -7,7 +7,7 @@ colour-coded inline spans, grouped into paragraphs.
 
 Can be run standalone:
 
-    python -m sgl.viz.app
+    python -m viz.app
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-_SRC = Path(__file__).resolve().parent.parent.parent  # viz -> sgl -> src
+_SRC = Path(__file__).resolve().parent.parent  # viz -> src
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
@@ -220,7 +220,7 @@ if _HAS_PYQT6:
 
         def _auto_load_corpus(self) -> None:
             module_dir = Path(__file__).resolve().parent
-            project_root = module_dir.parent.parent.parent  # viz -> sgl -> src -> root
+            project_root = module_dir.parent.parent  # viz -> src -> root
 
             candidates = [
                 (project_root / "corpus" / "text1.txt",
@@ -275,9 +275,9 @@ if _HAS_PYQT6:
             Paragraph breaks from the original text are preserved in the output.
             """
             try:
-                from sgl.sglalign import Aligner
-                from sgl.sglsim import hybrid_similarity
-                from sgl.sgldiff import CharLevelAligner
+                from core.sglalign import Aligner
+                from core.sglsim import hybrid_similarity
+                from core.sgldiff import CharLevelAligner
             except ImportError as e:
                 self._fallback_render(text_a, text_b, str(e))
                 return
