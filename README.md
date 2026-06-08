@@ -231,5 +231,3 @@ Aligned word pairs are post-processed into a flat list of `WordDiffBlock` object
 | Alternating deletes + inserts (no equals between them) | `modify` (merged)     | `在那一刻被` ↔ `在`    |
 
 The merged modify case handles scenarios where the NW aligner produces alternating insert-delete pairs for what is semantically a single substitution. The source words and target words from all pairs in the run are concatenated, and a character-level diff is computed for the combined strings. Each `WordDiffBlock` carries its constituent word lists and (for modify blocks) a character-level diff that allows drilling down from "these words changed" to "these characters changed within those words".
-#   s g l - a l i g n  
- 
