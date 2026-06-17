@@ -17,12 +17,11 @@ def _to_native(val: object) -> int | float | list:
         return int(val)
     if isinstance(val, np.ndarray):
         return val.tolist()
-    # If val is already a native type, return it directly (with type narrowing)
     if isinstance(val, (int, float, list)):
         return val
     if isinstance(val, str):
         return val
-    return val  # type: ignore[return-value]
+    return val
 
 
 def _deep_native(obj: object, round4: bool = True) -> object:
@@ -153,6 +152,10 @@ class AlignmentResult:
 
 @dataclass
 class CharDiff:
+    """Character-level diff entry.
+
+    - ``diff_type`` : ``"equal"`` | ``"delete"`` | ``"insert"``.
+    """
     char_src: Optional[str]
     char_tgt: Optional[str]
     diff_type: str
@@ -162,7 +165,7 @@ class CharDiff:
 class DiffBlock:
     """A contiguous block of character-level diff.
 
-    - ``block_type``: 'equal', 'modify', 'delete', 'insert', or 'move'.
+    - ``block_type``: 'equal', 'modify', 'delete', or 'insert'.
     - ``source_idx`` / ``target_idx``: optional sentence indices for move detection.
     """
     block_type: str
@@ -187,7 +190,7 @@ class RichDiffResult:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def summary(self) -> dict[str, int]:
-        counts: dict[str, int] = {"equal": 0, "modify": 0, "delete": 0, "insert": 0, "move": 0}
+        counts: dict[str, int] = {"equal": 0, "modify": 0, "delete": 0, "insert": 0}
         for b in self.blocks:
             counts[b.block_type] += 1
         return counts
@@ -204,8 +207,6 @@ class RichDiffResult:
                 lines.append(f"- {b.source_text}")
             elif b.block_type == "insert":
                 lines.append(f"+ {b.target_text}")
-            elif b.block_type == "move":
-                lines.append(f"~ {b.source_text}")
         return "\n".join(lines)
 
 

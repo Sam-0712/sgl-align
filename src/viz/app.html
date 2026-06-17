@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文本相似度比较</title>
+
+
+
+<style>
+/* ==================== Reset & Base ==================== */
+* { margin:0; padding:0; box-sizing:border-box; }
+
+
+
+body {
+  font-family: 'Source Han Serif CN', 'Noto Serif CJK SC', 'SimSun', serif;
+  font-weight: normal;
+  background: #f9fafb;
+  color: #1f2937;
+  min-height: 100vh;
+}
+h1, h2, h3 { font-family: inherit; }
+button { cursor:pointer; font-family:inherit; border:none; outline:none; }
+textarea { font-family:inherit; outline:none; resize:none; }
+.hidden { display:none !important; }
+
+/* ==================== Layout ==================== */
+.container { max-width:1200px; margin:0 auto; padding:24px 16px; }
+.title { font-size:24px; font-weight:bold; color:#1f2937; margin-bottom:4px; }
+.subtitle { font-size:14px; color:#6b7280; margin-bottom:24px; }
+
+/* ==================== Input Area ==================== */
+.input-area { display:flex; gap:16px; margin-bottom:24px; }
+.input-texts { flex:5; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.input-label { font-family: inherit; font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
+textarea.input-box {
+  font-family: inherit;
+  width:100%; height:120px; font-size:13px; padding:8px 10px;
+  border:1px solid #d1d5db; border-radius:8px; background:#fff;
+  line-height:1.6; overflow-y:auto;
+}
+textarea.input-box:focus { border-color:#66ccff; box-shadow:0 0 0 2px rgba(102,204,255,0.15); }
+.input-buttons { flex:1; display:flex; flex-direction:column; gap:8px; justify-content:flex-start; padding-top:20px; }
+.btn {
+  font-family: inherit;
+  font-size:12px; font-weight:600; color:#333; padding:8px 16px;
+  border-radius:8px; transition:all 0.2s;
+}
+.btn:hover { opacity:0.85; transform:translateY(-1px); }
+.btn:active { transform:translateY(0); }
+.btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.btn-clear   { background:linear-gradient(to right,#fecaca,#e9d5ff); }
+.btn-ex      { background:linear-gradient(to right,#fed7aa,#fef08a); }
+.btn-analyze { background:linear-gradient(to right,#bfdbfe,#fecdd3); }
+
+/* ==================== Results ==================== */
+.results { display:none; }
+.section-title {
+  font-size:14px; font-weight:bold; color:#374151; margin-bottom:12px;
+  display:flex; align-items:center; gap:6px;
+}
+.section-title::before {
+  content:''; width:4px; height:16px; background:#6366f1; border-radius:2px;
+}
+
+/* ---- Rich Diff ---- */
+.diff-panel { margin-bottom:32px; }
+.diff-controls {
+  background:rgba(243,244,246,0.6); padding:8px; border-radius:12px;
+  border:1px solid #e5e7eb; margin-bottom:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.diff-legend { display:flex; align-items:center; gap:16px; font-size:12px; color:#6b7280; font-weight:500; }
+.legend-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.legend-delete .legend-dot { background:#fbbf24; }
+.legend-insert .legend-dot { background:#34d399; }
+.legend-hidden-text { font-size:12px; color:#9ca3af; }
+
+.mode-tabs { display:flex; gap:4px; padding:4px; background:rgba(226,232,240,0.8); border-radius:8px; }
+.mode-tab {
+  font-family: inherit;
+  font-size:12px; padding:5px 14px; border-radius:6px; transition:all 0.2s;
+  background:transparent; color:#6b7280;
+}
+.mode-tab:hover { background:#fff; }
+.mode-tab.active {
+  background:rgba(153,255,204,0.8); font-weight:bold; color:#1f2937;
+  box-shadow:0 1px 3px rgba(0,0,0,0.08);
+}
+.mode-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.diff-body {
+  background:rgba(255,255,255,0.7); padding:32px; border-radius:16px;
+  border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+  backdrop-filter:blur(4px);
+  font-size:15px; line-height:2.0; text-align:justify; color:#1f2937;
+}
+.diff-body.hidden-mode {
+  background:rgba(249,250,251,0.5); border:1px dashed #d1d5db;
+}
+.diff-body p { text-indent:2em; margin:0.5em 0; }
+.diff-body p:first-child { margin-top:0; }
+.diff-body p:last-child { margin-bottom:0; }
+
+/* char spans */
+.char-equal  { color:#1f2937; }
+.char-delete {
+  color:#b45309; background:rgba(254,243,199,0.4);
+  text-decoration:line-through; text-decoration-color:rgba(245,158,11,0.6);
+}
+.char-insert {
+  color:#047857; background:rgba(209,250,229,0.5);
+}
+/* radius utilities */
+.r-rounded        { border-radius:4px; padding:0 2px; }
+.r-rounded-l      { border-top-left-radius:4px; border-bottom-left-radius:4px; padding-left:2px; }
+.r-rounded-r      { border-top-right-radius:4px; border-bottom-right-radius:4px; padding-right:2px; }
+.r-rounded-l-none { border-top-left-radius:0; border-bottom-left-radius:0; }
+.r-rounded-r-none { border-top-right-radius:0; border-bottom-right-radius:0; }
+.r-rounded-none   { border-radius:0; }
+
+/* ---- Heatmap ---- */
+.heatmap-panel { margin-bottom:32px; }
+.heatmap-controls {
+  background:rgba(243,244,246,0.6); padding:8px 16px; border-radius:12px;
+  border:1px solid #e5e7eb; margin-bottom:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.heatmap-legend { display:flex; align-items:center; gap:8px; font-size:11px; color:#6b7280; font-weight:500; }
+.heatmap-gradient { width:48px; height:8px; border-radius:2px; background:linear-gradient(to right,hsl(220,100%,70%),hsl(0,100%,70%)); }
+.heatmap-label-badge {
+  padding:2px 8px; border-radius:4px; background:rgba(229,231,235,0.8);
+  font-size:10px; color:#9ca3af;
+  font-family: inherit;
+}
+
+.path-toggle { display:flex; align-items:center; gap:6px; font-size:13px; }
+.path-toggle input[type="checkbox"] { width:32px; height:18px; accent-color:rgba(244,63,94,0.5); cursor:pointer; }
+.path-toggle label {
+  font-family: inherit;
+  color:#9ca3af; transition:color 0.2s; cursor:pointer; user-select:none;
+}
+.path-toggle input:checked + label { color:rgba(244,63,94,0.9); font-weight:bold; }
+
+.heatmap-container {
+  background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+  padding:16px; overflow:auto; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+  display:flex; justify-content:center;
+}
+.heatmap-table { border-collapse:collapse; }
+.hm-corner { width:29px; height:29px; }
+.hm-label {
+  width:29px; height:29px; text-align:center; font-size:10px;
+  color:#9ca3af; font-weight:600; border:0.5px solid #f3f4f6;
+  font-family: inherit;
+}
+.hm-cell {
+  width:29px; height:29px; text-align:center; font-size:9px;
+  border:0.25px solid rgba(243,244,246,0.5); transition:background 0.3s;
+  position:relative;
+}
+.hm-text { color:#4b5563; font-weight:500; font-family: inherit; }
+.hm-path-text { color:#000; font-family: inherit; }
+
+/* Path staggered animation (mirrors TSX framer-motion delay: pathIdx*0.15)
+   Only fade-in, no bold/border additions. */
+@keyframes pathReveal {
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+.hm-path-anim {
+  animation: pathReveal 0.15s ease-out both;
+}
+
+/* ==================== Loading & Error ==================== */
+.loading-overlay {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(255,255,255,0.8); backdrop-filter:blur(4px);
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  z-index:9999;
+}
+.spinner {
+  width:36px; height:36px; border:3px solid #e5e7eb;
+  border-top-color:#6366f1; border-radius:50%;
+  animation:spin 0.8s linear infinite; margin-bottom:12px;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-text { font-size:14px; color:#6b7280; font-weight:500; }
+
+.error-box {
+  background:#fef2f2; color:#dc2626; padding:12px 16px; border-radius:8px;
+  margin-bottom:16px; font-size:13px; display:flex; align-items:center; gap:8px;
+}
+.error-box::before { content:'!'; font-weight:bold; font-size:16px; }
+
+/* ==================== Scrollbar (globals.css custom-scrollbar) ==================== */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius:8px;
+  background:
+    repeating-linear-gradient(90deg,rgba(0,0,0,0.2) 0,rgba(0,0,0,0.2) 1px,transparent 3px,transparent 6px),
+    linear-gradient(to top,#99ffcc,#66ccff);
+}
+::-webkit-scrollbar-thumb:hover {
+  border-radius:8px;
+  background:
+    repeating-linear-gradient(90deg,rgba(0,0,0,0.2) 0,rgba(0,0,0,0.2) 1px,transparent 3px,transparent 6px),
+    linear-gradient(to top,#fee140,#fa709a);
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1 class="title">文本相似度比较</h1>
+  <p class="subtitle"></p>
+
+  <!-- ========== Input Area ========== -->
+  <div class="input-area">
+    <div class="input-texts">
+      <div>
+        <span class="input-label">文本 A</span>
+        <textarea class="input-box" id="textA" placeholder="输入原始文本..."></textarea>
+      </div>
+      <div>
+        <span class="input-label">文本 B</span>
+        <textarea class="input-box" id="textB" placeholder="输入参考文本..."></textarea>
+      </div>
+    </div>
+    <div class="input-buttons">
+      <button class="btn btn-clear" onclick="clearAll()">清空</button>
+      <button class="btn btn-ex" onclick="loadExample()">示例</button>
+      <button class="btn btn-analyze" id="btnAnalyze" onclick="runAnalysis()">对齐分析</button>
+    </div>
+  </div>
+
+  <div id="errorBox" class="error-box hidden"></div>
+
+  <!-- ========== Results ========== -->
+  <div class="results" id="results">
+
+    <!-- Rich Diff -->
+    <div class="diff-panel">
+      <h3 class="section-title">匹配痕迹展示</h3>
+      <div class="diff-controls">
+        <div class="diff-legend" id="diffLegend">
+          <span class="legend-delete"><span class="legend-dot"></span>删除内容</span>
+          <span class="legend-insert"><span class="legend-dot"></span>新增内容</span>
+        </div>
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="traces" onclick="setDisplayMode('traces')">显示修改痕迹</button>
+          <button class="mode-tab" data-mode="hidden" onclick="setDisplayMode('hidden')">隐藏修改痕迹</button>
+          <button class="mode-tab" data-mode="additions_only" onclick="setDisplayMode('additions_only')">只显示新增</button>
+        </div>
+      </div>
+      <div class="diff-body" id="diffBody"></div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="heatmap-panel">
+      <h3 class="section-title">相似度矩阵</h3>
+      <div class="heatmap-controls">
+        <div class="heatmap-legend">
+          <span>权重：低</span>
+          <div class="heatmap-gradient"></div>
+          <span>高</span>
+          <span class="heatmap-label-badge" id="hmModeLabel">局部相似度 (0-100)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div class="path-toggle">
+            <input type="checkbox" id="pathToggle" onchange="onPathToggle()">
+            <label for="pathToggle" id="pathLabel">回溯路径</label>
+          </div>
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-hm="similarity" onclick="setHeatmapMode('similarity')">相似度</button>
+            <button class="mode-tab" data-hm="fb_score" onclick="setHeatmapMode('fb_score')">路径权重</button>
+            <button class="mode-tab" data-hm="dp_score" onclick="setHeatmapMode('dp_score')">DP矩阵</button>
+          </div>
+        </div>
+      </div>
+      <div class="heatmap-container" id="heatmapContainer">
+        <p style="color:#9ca3af;text-align:center;padding:24px;">无矩阵数据</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">分析中...</div>
+</div>
+
+<script>
+// ==================== State ====================
+let alignmentData = null;
+let displayMode = 'traces';
+let heatmapMode = 'similarity';
+let pathAnimating = false;
+
+// ==================== Input ====================
+function clearAll() {
+  document.getElementById('textA').value = '';
+  document.getElementById('textB').value = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('errorBox').classList.add('hidden');
+  alignmentData = null;
+}
+
+// ==================== Example ====================
+function loadExample() {
+  fetch('/api/example')
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        document.getElementById('textA').value = d.text_a;
+        document.getElementById('textB').value = d.text_b;
+      }
+    })
+    .catch(() => {});
+}
+
+// ==================== Analysis ====================
+function runAnalysis() {
+  const text1 = document.getElementById('textA').value;
+  const text2 = document.getElementById('textB').value;
+  if (!text1.trim() || !text2.trim()) {
+    showError('请输入要对齐的两段文本');
+    return;
+  }
+
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('errorBox').classList.add('hidden');
+  document.getElementById('btnAnalyze').disabled = true;
+
+  fetch('/api/align', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text1, text2 }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+      document.getElementById('btnAnalyze').disabled = false;
+      if (d.success) {
+        alignmentData = d.data;
+        document.getElementById('results').style.display = 'block';
+        // Reset path toggle on new analysis
+        document.getElementById('pathToggle').checked = false;
+        updatePathLabel();
+        renderDiff();
+        renderHeatmap();
+      } else {
+        showError(d.error || '分析失败');
+      }
+    })
+    .catch(err => {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+      document.getElementById('btnAnalyze').disabled = false;
+      showError('请求失败: ' + err.message);
+    });
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.classList.remove('hidden');
+}
+
+// ==================== Rich Diff Rendering ====================
+function getRadiusClass(para, idx, type) {
+  let startIdx = idx, endIdx = idx;
+  while (endIdx < para.length && para[endIdx][2] === type) endIdx++;
+  while (startIdx > 0 && para[startIdx - 1][2] === type) startIdx--;
+  const isFirst = startIdx === idx;
+  const isLast = endIdx === idx + 1;
+  if (isFirst && isLast) return 'r-rounded';
+  if (isFirst) return 'r-rounded-l r-rounded-r-none';
+  if (isLast) return 'r-rounded-l-none r-rounded-r';
+  return 'r-rounded-none';
+}
+
+function renderDiff() {
+  if (!alignmentData || !alignmentData.segments) return;
+  const allChars = alignmentData.segments.flatMap(s => s.chars);
+
+  // Split into paragraphs by \n\n
+  const paragraphs = [[]];
+  let paraIdx = 0;
+  for (let i = 0; i < allChars.length; i++) {
+    const [c1, c2] = allChars[i];
+    const isBreak = (c1 === '\n' && allChars[i+1]?.[0] === '\n') ||
+                    (c2 === '\n' && allChars[i+1]?.[1] === '\n');
+    if (isBreak) {
+      if (paragraphs[paraIdx].length > 0) { paragraphs.push([]); paraIdx++; }
+      i++;
+      continue;
+    }
+    paragraphs[paraIdx].push(allChars[i]);
+  }
+
+  const body = document.getElementById('diffBody');
+  body.className = 'diff-body' + (displayMode === 'hidden' ? ' hidden-mode' : '');
+
+  let html = '';
+  for (const para of paragraphs) {
+    if (para.length === 0) continue;
+    html += '<p>';
+    for (let i = 0; i < para.length; i++) {
+      const [c1, c2, type] = para[i];
+      if (c1 === '\n' || c2 === '\n') { html += '<br>'; continue; }
+      const radius = getRadiusClass(para, i, type);
+
+      if (displayMode === 'traces') {
+        if (type === 'equal') {
+          html += `<span class="char-equal">${esc(c1 || '')}</span>`;
+        } else if (type === 'delete') {
+          html += `<span class="char-delete ${radius}">${esc(c1 || '')}</span>`;
+        } else if (type === 'insert') {
+          html += `<span class="char-insert ${radius}">${esc(c2 || '')}</span>`;
+        }
+      } else if (displayMode === 'hidden') {
+        if (type === 'delete') continue;
+        html += `<span>${esc(c2 || c1 || '')}</span>`;
+      } else if (displayMode === 'additions_only') {
+        if (type === 'delete') continue;
+        if (type === 'equal') {
+          html += `<span class="char-equal">${esc(c1 || '')}</span>`;
+        } else if (type === 'insert') {
+          html += `<span class="char-insert ${radius}">${esc(c2 || '')}</span>`;
+        }
+      }
+    }
+    html += '</p>';
+  }
+  body.innerHTML = html;
+
+  // Update legend
+  const legend = document.getElementById('diffLegend');
+  if (displayMode === 'traces') {
+    legend.innerHTML = '<span class="legend-delete"><span class="legend-dot"></span>删除内容</span><span class="legend-insert"><span class="legend-dot"></span>新增内容</span>';
+  } else if (displayMode === 'hidden') {
+    legend.innerHTML = '<span class="legend-hidden-text">当前展示修订后的最终文本（已隐藏修改痕迹）</span>';
+  } else if (displayMode === 'additions_only') {
+    legend.innerHTML = '<span class="legend-insert"><span class="legend-dot"></span>新增内容</span>';
+  }
+}
+
+function setDisplayMode(mode) {
+  displayMode = mode;
+  document.querySelectorAll('.diff-controls .mode-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+  renderDiff();
+}
+
+// ==================== Heatmap Rendering ====================
+function getCellColor(fb, sim) {
+  const v = Math.exp(fb * 0.5);
+  const hue = 220 * (1 - v);
+  const sat = 30 + sim * 70;
+  const light = 90 - sim * 20;
+  return `hsl(${hue.toFixed(0)},${sat.toFixed(0)}%,${light.toFixed(0)}%)`;
+}
+
+function getDisplayVal(fb, dp, sim) {
+  if (heatmapMode === 'similarity') return Math.round(sim * 100);
+  if (heatmapMode === 'fb_score') return fb.toFixed(1);
+  return dp.toFixed(1);
+}
+
+// Build a lookup: "r,c" -> path index (for staggered animation delay)
+function buildPathIndexMap(path) {
+  const map = {};
+  path.forEach((p, idx) => { map[p.join(',')] = idx; });
+  return map;
+}
+
+function renderHeatmap() {
+  if (!alignmentData || !alignmentData.heatmap) return;
+  const hm = alignmentData.heatmap;
+  const { sim_matrix, dp_matrix, fb_matrix, path } = hm;
+  if (!sim_matrix || sim_matrix.length === 0) return;
+
+  const showPath = document.getElementById('pathToggle').checked;
+  const pathIndexMap = buildPathIndexMap(path);
+  const pathSet = new Set(Object.keys(pathIndexMap));
+  const n = sim_matrix.length;
+  const m = sim_matrix[0].length;
+
+  let html = '<table class="heatmap-table">';
+  // header
+  html += '<tr><td class="hm-corner"></td>';
+  for (let j = 0; j < m; j++) html += `<td class="hm-label">${j+1}</td>`;
+  html += '</tr>';
+
+  for (let i = 0; i < n; i++) {
+    html += '<tr>';
+    html += `<td class="hm-label">${i+1}</td>`;
+    for (let j = 0; j < m; j++) {
+      const fb = fb_matrix[i+1]?.[j+1] ?? 0;
+      const dp = dp_matrix[i+1]?.[j+1] ?? 0;
+      const sim = sim_matrix[i][j];
+      const key = `${i+1},${j+1}`;
+      const onPath = pathSet.has(key);
+      const color = getCellColor(fb, sim);
+      const val = getDisplayVal(fb, dp, sim);
+      let cls = 'hm-cell';
+      let style = `background:${color};`;
+      let title = `R:${i+1} C:${j+1}\nDP:${dp.toFixed(1)}\nFB:${fb.toFixed(1)}\nSim:${sim.toFixed(2)}`;
+      if (onPath) title += '\n（最优路径）';
+      if (showPath && onPath) {
+        // Staggered fade-in from bottom-right to top-left (animation on <span>, not <td>)
+        const delay = ((path.length - 1 - pathIndexMap[key]) * 0.15).toFixed(2);
+        html += `<td class="hm-cell" style="${style}" title="${title}"><span class="hm-path-text hm-path-anim" style="animation-delay:${delay}s">${val}</span></td>`;
+      } else if (showPath && !onPath) {
+        // Off-path: show background color but NO text
+        html += `<td class="${cls}" style="${style}" title="${title}"></td>`;
+      } else {
+        // Normal mode: show all numbers
+        html += `<td class="${cls}" style="${style}" title="${title}"><span class="hm-text">${val}</span></td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  document.getElementById('heatmapContainer').innerHTML = html;
+}
+
+function onPathToggle() {
+  const checked = document.getElementById('pathToggle').checked;
+  updatePathLabel();
+  const tabs = document.querySelectorAll('.heatmap-controls .mode-tab');
+
+  if (checked) {
+    // Disable mode tab buttons during animation (mirrors TSX behavior)
+    pathAnimating = true;
+    tabs.forEach(t => { t.disabled = true; t.style.opacity = '0.5'; });
+
+    const path = alignmentData?.heatmap?.path || [];
+    const totalMs = path.length * 150 + 150;
+    renderHeatmap();
+
+    setTimeout(() => {
+      pathAnimating = false;
+      tabs.forEach(t => { t.disabled = false; t.style.opacity = ''; });
+    }, totalMs);
+  } else {
+    renderHeatmap();
+  }
+}
+
+function updatePathLabel() {
+  const checked = document.getElementById('pathToggle').checked;
+  const pl = document.getElementById('pathLabel');
+  pl.style.color = checked ? 'rgba(244,63,94,0.9)' : '#9ca3af';
+  pl.style.fontWeight = checked ? 'bold' : 'normal';
+}
+
+function setHeatmapMode(mode) {
+  if (pathAnimating) return;
+  heatmapMode = mode;
+  document.querySelectorAll('.heatmap-controls .mode-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.hm === mode);
+  });
+  const labels = {
+    similarity: '局部相似度（0-100）',
+    fb_score: '路径分数（FB）',
+    dp_score: 'DP分数（NW）',
+  };
+  document.getElementById('hmModeLabel').textContent = labels[mode];
+  renderHeatmap();
+}
+
+// ==================== Utils ====================
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ==================== Init ====================
+fetch('/api/corpus')
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      document.getElementById('textA').value = d.text_a;
+      document.getElementById('textB').value = d.text_b;
+    }
+  })
+  .catch(() => {});
+</script>
+</body>
+</html>
