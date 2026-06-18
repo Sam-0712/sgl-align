@@ -1,8 +1,32 @@
-"""core.sgltext -- sentence segmentation."""
+"""core.sgltext -- text segmentation (paragraph + sentence)."""
 
 import re
 
-_PAT = re.compile(
+# ── paragraph ───────────────────────────────────────────────────────────
+
+
+def splitparas(text: str) -> list[str]:
+    """Split raw text into paragraphs."""
+    if not text or not text.strip():
+        return []
+    t = text.replace('\r\n', '\n').replace('\r', '\n').replace('\t', ' ')
+    raw = re.split(r'\n{2,}', t)
+    result: list[str] = []
+    for para in raw:
+        clean = re.sub(r'\s+', ' ', para).strip()
+        if clean:
+            result.append(clean)
+    return result
+
+
+def countparas(text: str) -> int:
+    """Return the number of paragraphs in *text*."""
+    return len(splitparas(text))
+
+
+# ── sentence ────────────────────────────────────────────────────────────
+
+_SENT_SPLIT_RE = re.compile(
     r'([\u3002\uff01\uff1f.!?\u2026]+'
     r'[\u201c\u201d\u2018\u2019\"\'\u300a\u300b\u3008\u3009\u300c\u300d]*|\n+)'
 )
@@ -14,7 +38,7 @@ def splitsents(text: str, minlen: int = 1,
     if not text or not text.strip():
         return []
     text = text.strip()
-    parts = _PAT.split(text)
+    parts = _SENT_SPLIT_RE.split(text)
     sents = []
     i = 0
     while i < len(parts) - 1:

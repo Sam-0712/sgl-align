@@ -273,3 +273,49 @@ class WordDiffResult:
 
     def to_diff_text(self) -> str:
         return "\n".join(self.to_diff_lines())
+
+
+# ========== CMI (Change Magnitude Index) types ==========
+
+@dataclass
+class CMIResult:
+    """Change Magnitude Index at multiple granularities.
+
+    CMI ∈ [0, 1].  0 = identical texts, 1 = maximum possible edit distance.
+
+    Three granularities:
+    - ``cmi_document`` — single scalar for the whole alignment.
+    - ``cmi_paragraphs`` — per-paragraph CMI (requires paragraph mapping).
+    - ``cmi_sentences`` — per-aligned-pair CMI.
+
+    ``direction`` is ``"a_to_b"`` for single-direction CMI or ``"merged"``
+    for the arithmetic-mean of both directions.
+    """
+    # ── document ──
+    cmi_document: float          # full-document CMI  [0, 1]
+    # ── paragraph ──
+    cmi_paragraphs: list[float]   # per-paragraph CMI (empty if no para map)
+    n_paragraphs: int
+    # ── sentence ──
+    cmi_sentences: list[float]    # per-aligned-pair CMI
+    n_pairs: int
+    # ── metadata ──
+    direction: str                # "a_to_b" | "merged"
+    # ── cost breakdown ──
+    total_edit_cost: float        # Σ actual edit costs
+    total_max_cost: float         # Σ max possible costs
+    match_cost_sum: float         # Σ costs from match/mismatch pairs
+    gap_cost_sum: float           # Σ costs from gap pairs
+    n_match_pairs: int
+    n_gap_pairs: int
+    # ── alignment parameters (for provenance) ──
+    gap_open: float
+    gap_extend: float
+
+    def to_dict(self) -> dict[str, object]:
+        d = _deep_native(asdict(self))
+        assert isinstance(d, dict)
+        return d
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)

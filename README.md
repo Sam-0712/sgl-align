@@ -32,13 +32,13 @@ Higher-order n-grams carry more structural information but are sparser and more 
 
 $$
 w_k = \frac{1}{k \cdot \ln(k + 1)}, \qquad
-\bar{w}_k = \frac{w_k}{\sum_{i=1}^{K} w_i}
+\bar{w}_k = \frac{w_k}{\sum_{i = 1}^{K} w_i}
 $$
 
 This gives 1-grams roughly 3 times the weight of 4-grams, ensuring that character-level tolerance (typos) dominates while higher-order constraints prevent drift. The weighted Dice sum is:
 
 $$
-S_{\text{dice}} = \sum_{k=1}^{K} \bar{w}_k \cdot D_k(x, y)
+S_{\text{dice}} = \sum_{k = 1}^{K} \bar{w}_k \cdot D_k(x, y)
 $$
 
 The `LCS` ratio measures global sequential similarity independent of n-gram locality:
@@ -90,7 +90,7 @@ $$
 Two final modifiers adjust the score for plausibility and size imbalance:
 
 $$
-\ell_r = \text{ROC}^{\;1 / (C_{\text{mean}} + \varepsilon)},
+\ell_r = \text{ROC}^{\; 1 / (C_{\text{mean}} + \varepsilon)},
 \qquad
 \ell_p = \left(\frac{|x|_{\min}}{|x|_{\max}}\right)^{\frac{\ln(|x|_{\min} + 1)}{\ln(|x|_{\max} + 1)}}
 $$
@@ -139,9 +139,9 @@ The three recurrences are
 
 $$
 \begin{aligned}
-M[i, j] &= \max\{M[i-1, j-1], X[i-1, j-1], Y[i-1, j-1]\} + \text{score}(i, j) \\
-X[i, j] &= \max\{M[i-1, j] + g_o,\; X[i-1, j] + g_e\} \\
-Y[i, j] &= \max\{M[i, j-1] + g_o,\; Y[i, j-1] + g_e\}
+M [i, j] &= \max\{M [i-1, j-1], X [i-1, j-1], Y [i-1, j-1]\} + \text{score}(i, j) \\
+X [i, j] &= \max\{M [i-1, j] + g_o,\; X [i-1, j] + g_e\} \\
+Y [i, j] &= \max\{M [i, j-1] + g_o,\; Y [i, j-1] + g_e\}
 \end{aligned}
 $$
 
@@ -231,3 +231,40 @@ Aligned word pairs are post-processed into a flat list of `WordDiffBlock` object
 | Alternating deletes + inserts (no equals between them) | `modify` (merged)     | `在那一刻被` ↔ `在`    |
 
 The merged modify case handles scenarios where the NW aligner produces alternating insert-delete pairs for what is semantically a single substitution. The source words and target words from all pairs in the run are concatenated, and a character-level diff is computed for the combined strings. Each `WordDiffBlock` carries its constituent word lists and (for modify blocks) a character-level diff that allows drilling down from "these words changed" to "these characters changed within those words".
+
+# Change Magnitude Index (CMI)
+
+The `AlignmentResult` from NW gives a pathway—which sentences align, which are deleted—but does not directly answer *how much* the text was changed. CMI translates the alignment into a scalar in $[0, 1]$ where $0$ means "identical texts" and $1$ means "maximally different". The computation operates at three granularities: document (whole text), paragraph (per logical segment), and sentence(per aligned pair). Paragraph-level CMI requires a paragraph → sentence index mapping, built by `splitparas()` and `splitsents()`.
+
+Each aligned pair contributes an individual edit cost, normalised to $[0, 1]$:
+
+- **Match / mismatch pair** with similarity $\sigma$:
+  
+  $$
+  c = 1 - \sigma
+  $$
+
+  Identical text yields $c = 0$; completely dissimilar text yields $c = 1$.
+
+- **Gap pair** (deletion or insertion): the affine gap penalty structure of the aligner is preserved. For a gap run of length $k$, the raw cost is
+
+  $$
+  C_{\text{gap}} = |g_o| + (k - 1) \cdot |g_e|
+  $$
+
+  where $g_o$ and $g_e$ are the aligner's gap-open and gap-extend penalties. The per-element cost is $C_{\text{gap}} / k$, then normalized by the maximum possible per-element gap cost $|g_o| + |g_e|$. A single-element gap costs $|g_o| / (|g_o| + |g_e|) \approx 0.88$ under default parameters; longer gap runs have lower per-element cost, reflecting the linguistic intuition that contiguous structural edits are a single operation rather than many independent ones.
+
+**Document CMI** is the arithmetic mean of all per-pair costs:
+$$
+\text{CMI}_{\text{doc}} = \frac{1}{N} \sum_{i = 1}^{N} c_i
+$$
+
+where $N$ is the number of aligned pairs (equal to $\max(|S|, |T|)$ due to global alignment). Because the hybrid similarity function is symmetric and NW finds the same optimal score for both directions, $\text{CMI}_{\text{doc}}$ is mathematically identical for $A \rightarrow B$ and $B \rightarrow A$. **Paragraph CMI** aggregates per-pair costs by paragraph membership. Each pair's cost is attributed to the paragraph of its source element; the paragraph CMI is the arithmetic mean of costs within that paragraph. **Sentence CMI** is simply the individual per-pair cost $c_i$, directly readable as "how much was this specific sentence changed".
+
+Paragraph-level CMI can differ between the two alignment directions when a paragraph contains gap pairs (deletions or insertions). The `merged_cmi()` function reconciles these two perspectives via a simple arithmetic mean:
+
+$$
+\text{CMI}_{\text{merged}} = \frac{\text{CMI}_{A \rightarrow B} + \text{CMI}_{B \rightarrow A}}{2}
+$$
+
+For paragraphs without gaps, the two directions are identical and the merge is a no-op. For gap-containing paragraphs, the average provides a balanced view without favoring either the source or target perspective.

@@ -29,6 +29,8 @@ coverage.xml
 *.trx
 .tox/
 .cache/
+.outputs/
+outputs/
 nosetests.xml
 junit.xml
 
