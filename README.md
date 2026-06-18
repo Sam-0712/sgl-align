@@ -236,25 +236,22 @@ The merged modify case handles scenarios where the NW aligner produces alternati
 
 The `AlignmentResult` from NW gives a pathway—which sentences align, which are deleted—but does not directly answer *how much* the text was changed. CMI translates the alignment into a scalar in $[0, 1]$ where $0$ means "identical texts" and $1$ means "maximally different". The computation operates at three granularities: document (whole text), paragraph (per logical segment), and sentence(per aligned pair). Paragraph-level CMI requires a paragraph → sentence index mapping, built by `splitparas()` and `splitsents()`.
 
-Each aligned pair contributes an individual edit cost, normalised to $[0, 1]$:
+Each aligned pair contributes an individual edit cost, normalized to $[0, 1]$. **Match / mismatch pair** with similarity $\sigma$:
 
-- **Match / mismatch pair** with similarity $\sigma$:
-  
-  $$
-  c = 1 - \sigma
-  $$
+$$
+c = 1 - \sigma
+$$
 
-  Identical text yields $c = 0$; completely dissimilar text yields $c = 1$.
+Identical text yields $c = 0$; completely dissimilar text yields $c = 1$. **Gap pair** (deletion or insertion): the affine gap penalty structure of the aligner is preserved. For a gap run of length $k$, the raw cost is
 
-- **Gap pair** (deletion or insertion): the affine gap penalty structure of the aligner is preserved. For a gap run of length $k$, the raw cost is
+$$
+C_{\text{gap}} = |g_o| + (k - 1) \cdot |g_e|
+$$
 
-  $$
-  C_{\text{gap}} = |g_o| + (k - 1) \cdot |g_e|
-  $$
-
-  where $g_o$ and $g_e$ are the aligner's gap-open and gap-extend penalties. The per-element cost is $C_{\text{gap}} / k$, then normalized by the maximum possible per-element gap cost $|g_o| + |g_e|$. A single-element gap costs $|g_o| / (|g_o| + |g_e|) \approx 0.88$ under default parameters; longer gap runs have lower per-element cost, reflecting the linguistic intuition that contiguous structural edits are a single operation rather than many independent ones.
+where $g_o$ and $g_e$ are the aligner's gap-open and gap-extend penalties. The per-element cost is $\displaystyle\frac{C_\text{gap}}{k}$, then normalized by the maximum possible per-element gap cost $|g_o| + |g_e|$. 
 
 **Document CMI** is the arithmetic mean of all per-pair costs:
+
 $$
 \text{CMI}_{\text{doc}} = \frac{1}{N} \sum_{i = 1}^{N} c_i
 $$
